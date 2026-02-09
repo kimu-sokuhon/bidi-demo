@@ -9,7 +9,10 @@
 const authToken = sessionStorage.getItem('authToken');
 const authenticatedUserId = sessionStorage.getItem('userId');
 
-if (!authToken || !authenticatedUserId) {
+// Optional: Enable this check if you want to require authentication
+const requireAuth = false;  // Set to true to require authentication
+
+if (requireAuth && (!authToken || !authenticatedUserId)) {
     // Redirect to login if not authenticated
     console.warn('No authentication token found, redirecting to login');
     window.location.href = '/login';

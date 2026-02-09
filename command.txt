@@ -5,6 +5,8 @@ gcloud builds submit . --tag [Artifactregistryイメージのパス]:latest --pr
 （例）
 gcloud builds submit . --tag asia-northeast1-docker.pkg.dev/dsk-agentspace-trial/bidi-demo/bidi-demo-app:latest --project=dsk-agentspace-trial
 
+gcloud builds submit . --tag asia-northeast1-docker.pkg.dev/kim-test-project/bidi-demo/bidi-demo-app:latest --project=kim-test-project-467705
+
 
 ・ArtifactRegistryのDockerイメージをソースに、Cloud Runにデプロイするときのコマンド
 gcloud run deploy [任意のアプリ名] \
@@ -29,5 +31,5 @@ gcloud run deploy bidi-demoapp \
      --memory=2Gi \
      --cpu=2 \
      --session-affinity \
-     --no-allow-unauthenticated \
-     --project=dsk-agentspace-trial
+     --allow-unauthenticated \
+     --project=kim-test-project-467705

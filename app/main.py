@@ -75,7 +75,7 @@ async def root(user: Optional[Dict[str, Any]] = Depends(get_optional_user)):
     Redirects to login if not authenticated.
     """
     # Check if authentication is required (can be configured)
-    require_auth_for_main = True  # Set to False to allow unauthenticated access
+    require_auth_for_main = False  # Set to True to require authentication
 
     if require_auth_for_main and not user:
         # Redirect to login page if not authenticated
