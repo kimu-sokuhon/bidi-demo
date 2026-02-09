@@ -965,26 +965,71 @@ import { startAudioPlayerWorklet } from "./audio-player.js";
 import { startAudioRecorderWorklet } from "./audio-recorder.js";
 
 // Start audio
-function startAudio() {
+async function startAudio() {
+  console.log("[AUDIO] Starting audio worklets...");
+  console.log("[AUDIO] Browser info:", {
+    userAgent: navigator.userAgent,
+    isSecureContext: window.isSecureContext,
+    location: window.location.protocol + '//' + window.location.host
+  });
+
+  let audioStarted = false;
+
   // Start audio output
-  startAudioPlayerWorklet().then(([node, ctx]) => {
+  try {
+    console.log("[AUDIO] Attempting to start audio player worklet...");
+    const [node, ctx] = await startAudioPlayerWorklet();
     audioPlayerNode = node;
     audioPlayerContext = ctx;
-  });
+    console.log("[AUDIO] Audio player worklet started successfully");
+    console.log("[AUDIO] AudioContext state:", ctx.state);
+    audioStarted = true;
+  } catch (error) {
+    console.error("[AUDIO] Failed to start audio player:", error);
+    console.error("[AUDIO] Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    addSystemMessage("Error: Failed to start audio player - " + error.message);
+    addSystemMessage("Please ensure you're using Chrome, Edge, or Safari and accessing via HTTPS or localhost");
+  }
+
   // Start audio input
-  startAudioRecorderWorklet(audioRecorderHandler).then(
-    ([node, ctx, stream]) => {
-      audioRecorderNode = node;
-      audioRecorderContext = ctx;
-      micStream = stream;
+  try {
+    console.log("[AUDIO] Attempting to start audio recorder worklet...");
+    const [node, ctx, stream] = await startAudioRecorderWorklet(audioRecorderHandler);
+    audioRecorderNode = node;
+    audioRecorderContext = ctx;
+    micStream = stream;
+    console.log("[AUDIO] Audio recorder worklet started successfully");
+    console.log("[AUDIO] Microphone stream active:", stream.active);
+    console.log("[AUDIO] AudioRecorderContext state:", ctx.state);
+    audioStarted = true;
+  } catch (error) {
+    console.error("[AUDIO] Failed to start audio recorder:", error);
+    console.error("[AUDIO] Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    addSystemMessage("Error: Failed to start microphone - " + error.message);
+
+    // Check for common issues
+    if (error.message.includes("Permission")) {
+      addSystemMessage("Please allow microphone access when prompted");
+    } else if (error.message.includes("AudioWorklet")) {
+      addSystemMessage("AudioWorklet not supported. Please use Chrome, Edge, or Safari");
     }
-  );
+  }
+
+  return audioStarted;
 }
 
 // Start the audio only when the user clicked the button
 // (due to the gesture requirement for the Web Audio API)
 const startAudioButton = document.getElementById("startAudioButton");
-startAudioButton.addEventListener("click", () => {
+startAudioButton.addEventListener("click", async () => {
   // Check WebSocket connection first
   if (!websocket || websocket.readyState !== WebSocket.OPEN) {
     console.error("[AUDIO] WebSocket not connected. Current state:", websocket?.readyState);
@@ -993,9 +1038,18 @@ startAudioButton.addEventListener("click", () => {
   }
 
   startAudioButton.disabled = true;
-  startAudio();
-  is_audio = true;
-  addSystemMessage("Audio mode enabled - you can now speak to the agent");
+  startAudioButton.textContent = "Initializing...";
+
+  const audioStarted = await startAudio();
+
+  if (audioStarted) {
+    is_audio = true;
+    addSystemMessage("Audio mode enabled - you can now speak to the agent");
+    startAudioButton.textContent = "Audio Enabled";
+  } else {
+    startAudioButton.disabled = false;
+    startAudioButton.textContent = "Enable Audio (Failed - Retry)";
+  }
 
   // Log to console
   addConsoleEntry('outgoing', 'Audio Mode Enabled', {
@@ -1006,6 +1060,10 @@ startAudioButton.addEventListener("click", () => {
 
   console.log("[AUDIO] Audio mode activated, WebSocket state:", websocket.readyState);
 });
+
+// Track audio statistics
+let audioChunkCount = 0;
+let lastAudioLogTime = Date.now();
 
 // Audio recorder handler
 function audioRecorderHandler(pcmData) {
@@ -1027,11 +1085,20 @@ function audioRecorderHandler(pcmData) {
   try {
     // Send audio as binary WebSocket frame (more efficient than base64 JSON)
     websocket.send(pcmData);
-    console.log("[CLIENT TO AGENT] Sent audio chunk: %s bytes", pcmData.byteLength);
+    audioChunkCount++;
+
+    // Log every second to avoid spam
+    const now = Date.now();
+    if (now - lastAudioLogTime > 1000) {
+      console.log(`[AUDIO STATS] Sent ${audioChunkCount} chunks, latest: ${pcmData.byteLength} bytes`);
+      lastAudioLogTime = now;
+      audioChunkCount = 0;
+    }
 
     // Log to console panel (optional, can be noisy with frequent audio chunks)
     // addConsoleEntry('outgoing', `Audio chunk: ${pcmData.byteLength} bytes`);
   } catch (error) {
     console.error("[AUDIO] Failed to send audio:", error);
+    addSystemMessage("Error sending audio: " + error.message);
   }
 }
