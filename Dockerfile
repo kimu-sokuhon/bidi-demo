@@ -17,7 +17,7 @@ COPY README.md .
 RUN pip install --no-cache-dir hatchling && pip install --no-cache-dir .
 
 # Copy the entire 'app' directory content into the container's /app directory.
-# This includes main.py, .env, static/, and google_search_agent/.
+# This includes main.py, .env, static/, google_search_agent/, and auth/.
 COPY app/ .
 
 # Cloud Run expects the application to listen on the port specified by the PORT environment variable.
@@ -26,5 +26,6 @@ EXPOSE 8080
 
 # Command to run the application using Uvicorn.
 # We use 0.0.0.0 to listen on all available network interfaces.
-# We explicitly use the PORT environment variable as required by Cloud Run.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# We use sh -c to allow environment variable expansion for $PORT.
+# Cloud Run sets the PORT environment variable dynamically.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

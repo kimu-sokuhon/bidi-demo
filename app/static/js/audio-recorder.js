@@ -5,36 +5,76 @@
 let micStream;
 
 export async function startAudioRecorderWorklet(audioRecorderHandler) {
-  // Create an AudioContext
-  const audioRecorderContext = new AudioContext({ sampleRate: 16000 });
-  console.log("AudioContext sample rate:", audioRecorderContext.sampleRate);
+  try {
+    // Create an AudioContext with cross-browser compatibility
+    const audioRecorderContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 16000
+    });
+    console.log("[AUDIO-RECORDER] AudioContext sample rate:", audioRecorderContext.sampleRate);
 
-  // Load the AudioWorklet module
-  const workletURL = new URL("./pcm-recorder-processor.js", import.meta.url);
-  await audioRecorderContext.audioWorklet.addModule(workletURL);
+    // Check if running in secure context (required for AudioWorklet)
+    if (!window.isSecureContext) {
+      console.warn('[AUDIO-RECORDER] Not in secure context (HTTPS/localhost). AudioWorklet may not be available.');
+    }
 
-  // Request access to the microphone
-  micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1 },
-  });
-  const source = audioRecorderContext.createMediaStreamSource(micStream);
+    // Check if AudioWorklet is available
+    if (!audioRecorderContext.audioWorklet) {
+      console.error('[AUDIO-RECORDER] AudioWorklet not available. Browser info:', {
+        userAgent: navigator.userAgent,
+        isSecureContext: window.isSecureContext,
+        audioContextState: audioRecorderContext.state
+      });
+      throw new Error('AudioWorklet is not supported in this browser. Please use Chrome, Edge, or Safari.');
+    }
 
-  // Create an AudioWorkletNode that uses the PCMProcessor
-  const audioRecorderNode = new AudioWorkletNode(
-    audioRecorderContext,
-    "pcm-recorder-processor"
-  );
+    // Load the AudioWorklet module
+    const workletURL = new URL("./pcm-recorder-processor.js", import.meta.url);
+    console.log('[AUDIO-RECORDER] Loading worklet from:', workletURL.href);
 
-  // Connect the microphone source to the worklet.
-  source.connect(audioRecorderNode);
-  audioRecorderNode.port.onmessage = (event) => {
-    // Convert to 16-bit PCM
-    const pcmData = convertFloat32ToPCM(event.data);
+    await audioRecorderContext.audioWorklet.addModule(workletURL).catch(err => {
+      console.error('[AUDIO-RECORDER] Failed to load worklet module:', err);
+      throw new Error(`Failed to load audio recorder worklet module: ${err.message}`);
+    });
 
-    // Send the PCM data to the handler.
-    audioRecorderHandler(pcmData);
-  };
-  return [audioRecorderNode, audioRecorderContext, micStream];
+    // Request access to the microphone
+    console.log('[AUDIO-RECORDER] Requesting microphone access...');
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1 },
+    });
+    console.log('[AUDIO-RECORDER] Microphone access granted');
+
+    const source = audioRecorderContext.createMediaStreamSource(micStream);
+
+    // Create an AudioWorkletNode that uses the PCMProcessor
+    const audioRecorderNode = new AudioWorkletNode(
+      audioRecorderContext,
+      "pcm-recorder-processor"
+    );
+
+    // Connect the microphone source to the worklet.
+    source.connect(audioRecorderNode);
+    audioRecorderNode.port.onmessage = (event) => {
+      // Convert to 16-bit PCM
+      const pcmData = convertFloat32ToPCM(event.data);
+
+      // Send the PCM data to the handler.
+      audioRecorderHandler(pcmData);
+    };
+
+    console.log('[AUDIO-RECORDER] Audio recorder worklet initialized successfully');
+    return [audioRecorderNode, audioRecorderContext, micStream];
+  } catch (error) {
+    console.error('[AUDIO-RECORDER] Error initializing audio recorder worklet:', error);
+    console.error('[AUDIO-RECORDER] Stack trace:', error.stack);
+
+    // Clean up microphone stream if it was opened
+    if (micStream) {
+      micStream.getTracks().forEach(track => track.stop());
+      micStream = null;
+    }
+
+    throw error;
+  }
 }
 
 /**

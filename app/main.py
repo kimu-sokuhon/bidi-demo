@@ -6,9 +6,10 @@ import json
 import logging
 import warnings
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google.adk.agents.live_request_queue import LiveRequestQueue
@@ -23,6 +24,7 @@ load_dotenv(Path(__file__).parent / ".env")
 # Import agent after loading environment variables
 # pylint: disable=wrong-import-position
 from google_search_agent.agent import agent  # noqa: E402
+
 
 # Configure logging
 logging.basicConfig(
@@ -58,9 +60,15 @@ runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
 # ========================================
 
 
+@app.get("/login")
+async def login_page():
+    """Serve the login page."""
+    return FileResponse(Path(__file__).parent / "static" / "login.html")
+
+
 @app.get("/")
 async def root():
-    """Serve the index.html page."""
+    """Serve the main application page."""
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
@@ -90,6 +98,7 @@ async def websocket_endpoint(
         f"WebSocket connection request: user_id={user_id}, session_id={session_id}, "
         f"proactivity={proactivity}, affective_dialog={affective_dialog}"
     )
+
     await websocket.accept()
     logger.debug("WebSocket connection accepted")
 
