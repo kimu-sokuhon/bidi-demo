@@ -26,6 +26,9 @@
         <span class="status-indicator" id="statusIndicator"></span>
         <span id="statusText">Connecting...</span>
       </div>
+      <div class="auth-controls" style="position: absolute; top: 10px; right: 10px;">
+        <button id="logoutButton" onclick="logout()" style="padding: 8px 16px; background: #6B46C1; color: white; border: none; border-radius: 4px; cursor: pointer;">Logout</button>
+      </div>
     </header>
 
     <div class="main-layout">
@@ -64,6 +67,22 @@
         <div id="consoleContent" class="console-content"></div>
       </div>
     </div>
+
+    <script>
+      // Logout function
+      function logout() {
+        // Clear session storage
+        sessionStorage.clear();
+
+        // Close WebSocket if exists
+        if (window.websocket) {
+          window.websocket.close();
+        }
+
+        // Redirect to login page
+        window.location.href = '/login';
+      }
+    </script>
 
     <!-- Camera Preview Modal -->
     <div id="cameraModal" class="modal">

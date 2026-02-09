@@ -3,12 +3,25 @@
  */
 
 /**
+ * Authentication Check
+ */
+// Check if user is authenticated
+const authToken = sessionStorage.getItem('authToken');
+const authenticatedUserId = sessionStorage.getItem('userId');
+
+if (!authToken || !authenticatedUserId) {
+    // Redirect to login if not authenticated
+    console.warn('No authentication token found, redirecting to login');
+    window.location.href = '/login';
+}
+
+/**
  * WebSocket handling
  */
 
-// Connect the server with a WebSocket connection
-const userId = "demo-user";
-const sessionId = "demo-session-" + Math.random().toString(36).substring(7);
+// Use authenticated user ID or fallback to demo user
+const userId = authenticatedUserId || "demo-user";
+const sessionId = "session-" + Math.random().toString(36).substring(7);
 let websocket = null;
 let is_audio = false;
 
@@ -39,6 +52,11 @@ function getWebSocketUrl() {
   const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const baseUrl = wsProtocol + "//" + window.location.host + "/ws/" + userId + "/" + sessionId;
   const params = new URLSearchParams();
+
+  // Add authentication token if available
+  if (authToken) {
+    params.append("token", authToken);
+  }
 
   // Add proactivity option if checked
   if (enableProactivityCheckbox && enableProactivityCheckbox.checked) {
