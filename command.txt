@@ -1,0 +1,33 @@
+・DockerfileをArtifactRegistryにプッシュしてDockerイメージビルドするときのコマンド
+※先に、ArtifactRegistryにイメージ用のリポジトリ作っておく必要があるよ
+gcloud builds submit . --tag [Artifactregistryイメージのパス]:latest --project=[プロジェクトID]
+
+（例）
+gcloud builds submit . --tag asia-northeast1-docker.pkg.dev/dsk-agentspace-trial/bidi-demo/bidi-demo-app:latest --project=dsk-agentspace-trial
+
+
+・ArtifactRegistryのDockerイメージをソースに、Cloud Runにデプロイするときのコマンド
+gcloud run deploy [任意のアプリ名] \
+     --image [Artifactregistryイメージのパス]:latest \
+     --platform managed \
+     --region [リージョン] \
+     --min-instances=[最小インスタンス数（0にしないとホットスタンバイで常時課金になるよ）] \
+     --max-instances=[最大インスタンス数] \
+     --memory=[インスタンスのメモリ数] \
+     --cpu=[インスタンスのCPU数] \
+     --session-affinity \ [セッションアフィニティの有効（今回のアプリはセッションをインスタンスのメモリで管理する関係で有効化したほうがよさそう）]
+     --no-allow-unauthenticated \ [認証のありなし。アプリ側で認証作るなら不要]
+     --project=[プロジェクトID]
+
+（例）
+gcloud run deploy bidi-demoapp \
+     --image asia-northeast1-docker.pkg.dev/dsk-agentspace-trial/bidi-demo/bidi-demo-app:latest \
+     --platform managed \
+     --region asia-northeast1 \
+     --min-instances=0 \
+     --max-instances=5 \
+     --memory=2Gi \
+     --cpu=2 \
+     --session-affinity \
+     --no-allow-unauthenticated \
+     --project=dsk-agentspace-trial
