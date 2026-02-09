@@ -6,11 +6,11 @@ import json
 import logging
 import warnings
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, Query
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from google.adk.agents.live_request_queue import LiveRequestQueue
 from google.adk.agents.run_config import RunConfig, StreamingMode
@@ -25,8 +25,6 @@ load_dotenv(Path(__file__).parent / ".env")
 # pylint: disable=wrong-import-position
 from google_search_agent.agent import agent  # noqa: E402
 
-# Import authentication middleware
-from auth import firebase_auth, get_optional_user  # noqa: E402
 
 # Configure logging
 logging.basicConfig(
@@ -69,18 +67,8 @@ async def login_page():
 
 
 @app.get("/")
-async def root(user: Optional[Dict[str, Any]] = Depends(get_optional_user)):
-    """
-    Serve the main application page.
-    Redirects to login if not authenticated.
-    """
-    # Check if authentication is required (can be configured)
-    require_auth_for_main = False  # Set to True to require authentication
-
-    if require_auth_for_main and not user:
-        # Redirect to login page if not authenticated
-        return RedirectResponse(url="/login", status_code=303)
-
+async def root():
+    """Serve the main application page."""
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
@@ -96,7 +84,6 @@ async def websocket_endpoint(
     session_id: str,
     proactivity: bool = False,
     affective_dialog: bool = False,
-    token: Optional[str] = Query(None),
 ) -> None:
     """WebSocket endpoint for bidirectional streaming with ADK.
 
@@ -106,29 +93,11 @@ async def websocket_endpoint(
         session_id: Session identifier
         proactivity: Enable proactive audio (native audio models only)
         affective_dialog: Enable affective dialog (native audio models only)
-        token: Optional Firebase ID token for authentication
     """
     logger.debug(
         f"WebSocket connection request: user_id={user_id}, session_id={session_id}, "
-        f"proactivity={proactivity}, affective_dialog={affective_dialog}, "
-        f"has_token={bool(token)}"
+        f"proactivity={proactivity}, affective_dialog={affective_dialog}"
     )
-
-    # Authenticate if token is provided
-    authenticated_user = None
-    if token and token != 'undefined':  # Check for 'undefined' string
-        authenticated_user = firebase_auth.websocket_authenticate(token)
-        if authenticated_user:
-            logger.info(f"WebSocket authenticated for user: {authenticated_user['uid']}")
-            # Override user_id with authenticated user's ID
-            user_id = authenticated_user['uid']
-        else:
-            logger.warning("WebSocket authentication failed - invalid token")
-            # Optionally reject connection if authentication is required
-            # await websocket.close(code=1008, reason="Authentication failed")
-            # return
-    else:
-        logger.debug(f"No valid token provided, using default user_id: {user_id}")
 
     await websocket.accept()
     logger.debug("WebSocket connection accepted")
