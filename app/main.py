@@ -116,7 +116,7 @@ async def websocket_endpoint(
 
     # Authenticate if token is provided
     authenticated_user = None
-    if token:
+    if token and token != 'undefined':  # Check for 'undefined' string
         authenticated_user = firebase_auth.websocket_authenticate(token)
         if authenticated_user:
             logger.info(f"WebSocket authenticated for user: {authenticated_user['uid']}")
@@ -127,6 +127,8 @@ async def websocket_endpoint(
             # Optionally reject connection if authentication is required
             # await websocket.close(code=1008, reason="Authentication failed")
             # return
+    else:
+        logger.debug(f"No valid token provided, using default user_id: {user_id}")
 
     await websocket.accept()
     logger.debug("WebSocket connection accepted")

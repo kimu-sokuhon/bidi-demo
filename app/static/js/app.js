@@ -57,7 +57,8 @@ function getWebSocketUrl() {
   const params = new URLSearchParams();
 
   // Add authentication token if available
-  if (authToken) {
+  // Note: Only add token if it's not null/undefined to avoid "undefined" string
+  if (authToken && authToken !== 'undefined') {
     params.append("token", authToken);
   }
 
@@ -984,6 +985,13 @@ function startAudio() {
 // (due to the gesture requirement for the Web Audio API)
 const startAudioButton = document.getElementById("startAudioButton");
 startAudioButton.addEventListener("click", () => {
+  // Check WebSocket connection first
+  if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+    console.error("[AUDIO] WebSocket not connected. Current state:", websocket?.readyState);
+    addSystemMessage("Error: WebSocket not connected. Please refresh the page.");
+    return;
+  }
+
   startAudioButton.disabled = true;
   startAudio();
   is_audio = true;
@@ -992,18 +1000,38 @@ startAudioButton.addEventListener("click", () => {
   // Log to console
   addConsoleEntry('outgoing', 'Audio Mode Enabled', {
     status: 'Audio worklets started',
-    message: 'Microphone active - audio input will be sent to agent'
+    message: 'Microphone active - audio input will be sent to agent',
+    websocket_state: websocket.readyState === WebSocket.OPEN ? 'Connected' : 'Disconnected'
   }, '🎤', 'system');
+
+  console.log("[AUDIO] Audio mode activated, WebSocket state:", websocket.readyState);
 });
 
 // Audio recorder handler
 function audioRecorderHandler(pcmData) {
-  if (websocket && websocket.readyState === WebSocket.OPEN && is_audio) {
+  if (!websocket) {
+    console.error("[AUDIO] WebSocket not initialized");
+    return;
+  }
+
+  if (websocket.readyState !== WebSocket.OPEN) {
+    console.error("[AUDIO] WebSocket not open, state:", websocket.readyState);
+    return;
+  }
+
+  if (!is_audio) {
+    console.warn("[AUDIO] Audio mode not enabled");
+    return;
+  }
+
+  try {
     // Send audio as binary WebSocket frame (more efficient than base64 JSON)
     websocket.send(pcmData);
     console.log("[CLIENT TO AGENT] Sent audio chunk: %s bytes", pcmData.byteLength);
 
     // Log to console panel (optional, can be noisy with frequent audio chunks)
     // addConsoleEntry('outgoing', `Audio chunk: ${pcmData.byteLength} bytes`);
+  } catch (error) {
+    console.error("[AUDIO] Failed to send audio:", error);
   }
 }
